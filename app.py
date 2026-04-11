@@ -22,7 +22,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-creds = ServiceAccountCredentials.from_json_keyfile_name('/etc/secret/c.json', SCOPES)
+creds = ServiceAccountCredentials.from_json_keyfile_name('/etc/secrets/c.json', SCOPES)
 client = gspread.authorize(creds)
 # ---------- Globl variables ----------
 product_sheet_key="1-ehBU680I4LuZl5B6p6SoihZCZcb75ODYSG6kJhEpLo"
