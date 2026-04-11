@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Products</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        .modal-content {
+            border-radius: 15px;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #eee;
+        }
+
+        .modal-footer {
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <div class="container mt-5">
+        <div class="d-flex justify-content-end mb-3">
+            <a href="/" class="btn btn-light border shadow-sm btn-sm">
+                <i class="bi bi-house-door-fill me-1"></i> Home
+            </a>
+        </div>
+        <div class="card p-4">
+
+            <div class="d-flex justify-content-between mb-3">
+                <h3>📦 Products</h3>
+                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
+                    ➕ Add Product
+                </button>
+            </div>
+
+            <table class="table table-bordered text-center">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in products %}
+                    <tr>
+                        <td>{{ p.ProductCode }}</td>
+                        <td>{{ p.Name }}</td>
+                        <td>{{ p.Price }}</td>
+                        <td>{{ p.Stock }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+
+    <!-- 🔥 Add Modal -->
+    <div class="modal fade" id="addModal">
+        <div class="modal-dialog">
+            <div class="modal-content p-3">
+
+                <h5>Add Product</h5>
+
+                <input type="text" id="name" placeholder="Name" class="form-control mb-2">
+                <input type="number" id="price" placeholder="Price" class="form-control mb-2">
+                <input type="number" id="stock" placeholder="Stock" class="form-control mb-3">
+
+                <button class="btn btn-success" id="generateBtn" onclick="generateProduct()">
+                    <span id="btnText">Generate</span>
+                    <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none"></span>
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 🔥 Result Modal -->
+    <div class="modal fade" id="resultModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <!-- 🔥 Header -->
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-check-circle text-success"></i>
+                        Product Created
+                    </h5>
+
+                    <!-- ❌ Close button -->
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" onclick="reload()"></button>
+                </div>
+
+                <!-- 🔥 Body -->
+                <div class="modal-body text-center">
+
+                    <h3 id="newCode" class="fw-bold mb-3"></h3>
+
+                    <img id="barcodeImg" class="img-fluid mb-3" style="max-width:280px">
+
+                </div>
+
+                <!-- 🔥 Footer -->
+                <div class="modal-footer justify-content-between">
+
+                    <button class="btn btn-secondary" data-bs-dismiss="modal" onclick="reload()">
+                        Close
+                    </button>
+
+                    <a id="downloadBtn" class="btn btn-primary" download>
+                        <i class="bi bi-download me-1"></i> Download
+                    </a>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <script>
+        function generateProduct() {
+
+            let btn = document.getElementById("generateBtn");
+            let spinner = document.getElementById("btnSpinner");
+            let text = document.getElementById("btnText");
+
+            // 🔥 START LOADING
+            btn.disabled = true;
+            spinner.classList.remove("d-none");
+            text.innerText = "Generating...";
+
+            let name = document.getElementById("name").value;
+            let price = document.getElementById("price").value;
+            let stock = document.getElementById("stock").value;
+
+            fetch("/api/add-product", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, price, stock })
+            })
+                .then(res => res.json())
+                .then(data => {
+
+                    // 🔥 STOP LOADING
+                    btn.disabled = false;
+                    spinner.classList.add("d-none");
+                    text.innerText = "Generate";
+
+                    if (data.status === "success") {
+
+                        bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+
+                        document.getElementById("newCode").innerText = data.code;
+                        document.getElementById("barcodeImg").src = data.barcode;
+                        document.getElementById("downloadBtn").href = data.barcode;
+
+                        let modal = new bootstrap.Modal(document.getElementById('resultModal'));
+                        modal.show();
+
+                        setTimeout(() => {
+                            document.getElementById("downloadBtn").focus();
+                        }, 300);
+                    }
+                })
+                .catch(() => {
+                    // 🔥 ERROR CASE
+                    btn.disabled = false;
+                    spinner.classList.add("d-none");
+                    text.innerText = "Generate";
+
+                    alert("Something went wrong");
+                });
+        }
+
+
+        function reload() {
+            setTimeout(() => location.reload(), 20);
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+
+</html>

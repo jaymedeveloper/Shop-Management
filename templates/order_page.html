@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Order Page</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: #f5f7fb;
+        }
+
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        .table thead {
+            background: #f1f3f6;
+        }
+
+        .form-control {
+            border-radius: 10px 0 0 10px;
+        }
+
+        .btn-add {
+            border-radius: 0 10px 10px 0;
+        }
+
+        .delete-btn {
+            border-radius: 8px;
+        }
+
+        h2 {
+            font-weight: 600;
+        }
+
+        .badge {
+            font-size: 14px;
+            padding: 6px 10px;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div class="container mt-5">
+        <div class="d-flex justify-content-end mb-3">
+            <a href="/" class="btn btn-light border shadow-sm btn-sm">
+                <i class="bi bi-house-door-fill me-1"></i> Home
+            </a>
+        </div>
+        <div class="card p-4 bg-white">
+
+
+
+
+            <div class="d-flex justify-content-between mb-3">
+                <h3>📦 New Order</h3>
+                <button class="btn btn-secondary" id="syncBtn" onclick="syncProducts()">
+                    <span id="syncText">
+                        <i class="bi bi-arrow-clockwise"></i> Sync Products
+                    </span>
+                </button>
+            </div>
+
+
+            <!-- Input -->
+            <div class="input-group mb-4">
+                <input type="text" id="barcodeInput" class="form-control text-uppercase form-control-lg"
+                    placeholder="Scan or enter product code" oninput="this.value = this.value.toUpperCase()">
+
+                <button class="btn btn-primary btn-add px-4" onclick="addBarcode()">
+                    Add
+                </button>
+            </div>
+
+            <div class="mt-3">
+                <button class="btn btn-dark" onclick="startScanner()">
+                    <i class="bi bi-camera"></i> Scan with Camera
+                </button>
+
+                <div id="reader" style="width:300px; margin-top:10px; display:none;"></div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover text-center align-middle">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Product Code</th>
+                            <th>Product Name</th>
+                            <th>Price</th>
+                            <th>Count</th>
+                            <th>Stock</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+
+            <button class="btn btn-success mt-3" onclick="goToBill()">
+                🧾 Get Bill
+            </button>
+        </div>
+
+    </div>
+    <div id="overlay" style="
+    display:none;
+    position:fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background:rgba(0,0,0,0.4);
+    z-index:1040;">
+    </div>
+    <script>
+        let beep = new Audio("/static/beep.mp3");
+        let errorSound = new Audio("/static/error.mp3");
+
+        window.onload = () => {
+            document.getElementById("barcodeInput").focus();
+        };
+
+        let data = [];
+        const PRODUCTS = {{ products | tojson }};
+        let productMap = {};
+
+        PRODUCTS.forEach(p => {
+            productMap[p.code] = {
+                name: p.name,
+                price: p.price,
+                stock: p.stock
+            };
+        });
+
+        console.log(PRODUCTS);
+
+        function addBarcode() {
+            let input = document.getElementById("barcodeInput");
+            let code = input.value.trim().toUpperCase();
+
+            if (!code) return;
+
+            // ❌ validation fail
+            if (!productMap[code]) {
+                errorSound.play();
+                input.value = "";
+                return;
+            }
+
+            let found = data.find(item => item.code === code);
+
+            if (found) {
+                found.count += 1;
+            } else {
+                data.push({
+                    code: code,
+                    name: productMap[code].name,// ✅ name add
+                    price: productMap[code].price,
+                    stock: productMap[code].stock,
+                    count: 1
+                });
+            }
+            beep.currentTime = 0;
+            beep.play();
+
+            renderTable();
+            input.value = "";
+        }
+
+        function deleteRow(code) {
+            data = data.filter(item => item.code !== code);
+            renderTable();
+        }
+
+        function renderTable() {
+            let tbody = document.getElementById("tableBody");
+            tbody.innerHTML = "";
+
+            data.forEach((item, index) => {
+                let row = `
+        <tr>
+            <td>${index + 1}</td>
+            <td>${item.code}</td>
+            <td>${item.name}</td>
+            <td>${item.price}</td>
+
+            <td>
+                <div class="d-flex justify-content-center align-items-center gap-2">
+
+                    <button class="btn btn-outline-secondary btn-sm"
+                        onclick="updateCount('${item.code}', -1)">
+                        <i class="bi bi-dash"></i>
+                    </button>
+
+                    <input type="number" min="1" value="${item.count}"
+                        class="form-control form-control-sm text-center"
+                        style="width:70px"
+                        onchange="setCount('${item.code}', this.value)">
+
+                    <button class="btn btn-outline-secondary btn-sm"
+                        onclick="updateCount('${item.code}', 1)">
+                        <i class="bi bi-plus"></i>
+                    </button>
+
+                </div>
+            </td>
+            <td><b>${item.stock}</b></td>
+            <td>
+                <button class="btn btn-danger btn-sm"
+                    onclick="deleteRow('${item.code}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+        `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function updateCount(code, change) {
+            let item = data.find(i => i.code === code);
+            if (!item) return;
+
+            item.count += change;
+
+
+            renderTable();
+        }
+
+        function setCount(code, value) {
+            let item = data.find(i => i.code === code);
+            if (!item) return;
+
+            let newVal = parseInt(value);
+
+            if (isNaN(newVal)) {
+                item.count = 1;
+            } else {
+                item.count = newVal;
+            }
+
+            renderTable();
+        }
+
+        document.addEventListener("keydown", function (e) {
+            if ((e.ctrlKey && e.key === "Enter") || (e.ctrlKey && (e.key === "s" || e.key === "S"))) {
+                e.preventDefault(); // 🔥 important
+
+                goToBill(); // same function jo button me use ho raha hai
+            }
+        });
+
+        document.getElementById("barcodeInput").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+
+                let input = document.getElementById("barcodeInput");
+                let code = input.value.trim().toUpperCase();
+
+                if (!code) return;
+
+                // 🔥 SAME validation here
+                if (!productMap[code]) {
+                    errorSound.play();
+                    input.value = "";
+                    return;
+                }
+
+                // ✅ manually add (copy logic instead of calling function)
+                let found = data.find(item => item.code === code);
+
+                if (found) {
+                    found.count += 1;
+                } else {
+                    data.push({
+                        code: code,
+                        name: productMap[code].name,
+                        price: productMap[code].price,
+                        stock: productMap[code].stock,
+                        count: 1
+                    });
+                }
+                beep.currentTime = 0;
+                beep.play();
+                renderTable();
+                input.value = "";
+            }
+        });
+
+        function goToBill() {
+
+            if (data.length === 0) {
+                alert("No items");
+                return;
+            }
+
+            overlay()
+            // 🔥 save data in browser
+            localStorage.setItem("billData", JSON.stringify(data));
+
+            // redirect
+            window.location.href = "/bill";
+        }
+
+
+
+        function syncProducts() {
+            let btn = document.getElementById("syncBtn");
+            let text = document.getElementById("syncText");
+
+            // 🔥 click ke time hi spinner
+            text.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Syncing...
+    `;
+            btn.disabled = true;
+
+            fetch("/refresh-products")
+                .then(res => res.text())
+                .then(() => {
+                    location.reload();
+                })
+                .catch(() => {
+                    text.innerHTML = `<i class="bi bi-x-circle"></i> Failed`;
+                    btn.disabled = false;
+                });
+
+        } function syncProducts() {
+            let btn = document.getElementById("syncBtn");
+            let text = document.getElementById("syncText");
+
+            // 🔥 click ke time hi spinner
+            text.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2"></span>
+        Syncing...
+    `;
+            btn.disabled = true;
+
+            fetch("/refresh-products")
+                .then(res => res.text())
+                .then(() => {
+                    location.reload();
+                })
+                .catch(() => {
+                    text.innerHTML = `<i class="bi bi-x-circle"></i> Failed`;
+                    btn.disabled = false;
+                });
+        }
+
+        function overlay() {
+            document.getElementById("overlay").style.display = "block";
+        }
+
+        let scanner;
+        let lastScanned = "";
+        let scanLock = false;
+
+        function startScanner() {
+            document.getElementById("reader").style.display = "block";
+
+            scanner = new Html5Qrcode("reader");
+
+            scanner.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: 250
+                },
+                (decodedText) => {
+
+                    // 🔥 duplicate fast scan avoid
+                    if (scanLock) return;
+
+                    if (decodedText === lastScanned) return;
+
+                    scanLock = true;
+                    lastScanned = decodedText;
+
+                    // set input
+                    document.getElementById("barcodeInput").value = decodedText;
+
+                    // add product
+                    addBarcode();
+
+                    // 🔊 sound + vibration
+                    navigator.vibrate?.(100);
+
+                    // ⏳ 1 sec delay before next scan
+                    setTimeout(() => {
+                        scanLock = false;
+                        lastScanned = "";
+                    }, 1000);
+                },
+                (error) => { }
+            );
+        }
+    </script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+</body>
+
+</html>
