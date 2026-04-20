@@ -46,6 +46,7 @@
                         <th>Name</th>
                         <th>Price</th>
                         <th>Stock</th>
+                        <th>Barcode</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,6 +56,11 @@
                         <td>{{ p[1] }}</td>
                         <td>{{ p[2] }}</td>
                         <td>{{ p[3] }}</td>
+                        <td>
+                            <a href="/download-barcode/{{ p[0] }}" class="btn btn-sm btn-primary">
+                                <i class="bi bi-download"></i>
+                            </a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
