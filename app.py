@@ -89,20 +89,23 @@ def change_stock(Uid,product_code, change):
 def generate_barcode_with_details(code, name, price):
     try:
         from flask import session
+        import io
+        import base64
 
         shop_name = session.get("name", "My Shop")
 
-        # ❌ remove default barcode text
         writer = ImageWriter()
         writer.text = ""
 
         barcode_class = barcode.get_barcode_class('code128')
         barcode_instance = barcode_class(code, writer=writer)
 
-        temp_path = f"{BARCODE_FOLDER}/temp_{code}"
-        barcode_filename = barcode_instance.save(temp_path)
+        # 👇 memory me barcode generate
+        buffer = io.BytesIO()
+        barcode_instance.write(buffer)
+        buffer.seek(0)
 
-        barcode_img = Image.open(barcode_filename)
+        barcode_img = Image.open(buffer)
         barcode_img = barcode_img.resize((400, 120))
 
         width, barcode_height = barcode_img.size
@@ -111,10 +114,8 @@ def generate_barcode_with_details(code, name, price):
         final_img = Image.new('RGB', (width, total_height), 'white')
         draw = ImageDraw.Draw(final_img)
 
-        # Fonts
         try:
             font_path = "static/fonts/Roboto-Italic-VariableFont_wdth,wght.ttf"
-
             font_shop = ImageFont.truetype(font_path, 26)
             font_product = ImageFont.truetype(font_path, 24)
         except:
@@ -126,20 +127,21 @@ def generate_barcode_with_details(code, name, price):
             x = (width - text_width) // 2
             draw.text((x, y), text, fill='black', font=font)
 
-        # Content
         center_text(shop_name, 10, font_shop)
         draw.line((20, 45, width-20, 45), fill="black", width=1)
         center_text(f"{name} | PRICE: ₹{price}", 55, font_product)
 
         final_img.paste(barcode_img, (0, 100))
 
-        final_path = f"{BARCODE_FOLDER}/{code}_final.png"
-        final_img.save(final_path)
+        # 👇 final image memory me save
+        final_buffer = io.BytesIO()
+        final_img.save(final_buffer, format="PNG")
+        final_buffer.seek(0)
 
-        if os.path.exists(barcode_filename):
-            os.remove(barcode_filename)
+        # 👇 base64 me convert (frontend ke liye)
+        img_base64 = base64.b64encode(final_buffer.getvalue()).decode()
 
-        return f"/{final_path}"
+        return f"data:image/png;base64,{img_base64}"
 
     except Exception as e:
         print("Error:", e)
@@ -422,6 +424,44 @@ def bills():
     conn.close()
 
     return render_template("bills.html", bills=final_data)
+
+@app.route("/download-barcode/<code>")
+def download_barcode(code):
+    try:
+        Uid = session.get('Uid')
+
+        conn = db()
+        cur = conn.cursor()
+        cur.execute("SELECT name, price FROM products WHERE user_id=%s AND code=%s", (Uid, code))
+        product = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not product:
+            return "Product not found"
+
+        name, price = product
+
+        # 👇 barcode generate (same function use karo)
+        base64_img = generate_barcode_with_details(code, name, price)
+
+        import base64, io
+        from flask import send_file
+
+        # base64 → binary
+        image_data = base64.b64decode(base64_img.split(",")[1])
+        buffer = io.BytesIO(image_data)
+
+        return send_file(
+            buffer,
+            mimetype='image/png',
+            as_attachment=True,
+            download_name=f"{code}.png"
+        )
+
+    except Exception as e:
+        print(e)
+        return "Error"
 
 
 if __name__ == "__main__":
