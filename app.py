@@ -87,78 +87,61 @@ def change_stock(Uid,product_code, change):
         return None
 
 def generate_barcode_with_details(code, name, price):
-    """Generate a barcode image with product details"""
     try:
-        # Generate the barcode
+        from flask import session
+
+        shop_name = session.get("name", "My Shop")
+
+        # ❌ remove default barcode text
+        writer = ImageWriter()
+        writer.text = ""
+
         barcode_class = barcode.get_barcode_class('code128')
-        barcode_instance = barcode_class(code, writer=ImageWriter())
-        
-        # Save temporary barcode image
+        barcode_instance = barcode_class(code, writer=writer)
+
         temp_path = f"{BARCODE_FOLDER}/temp_{code}"
         barcode_filename = barcode_instance.save(temp_path)
-        
-        # Open the barcode image
+
         barcode_img = Image.open(barcode_filename)
-        
-        # Create a new image with space for text
-        barcode_width, barcode_height = barcode_img.size
-        text_height = 100  # Space for text at bottom
-        new_height = barcode_height + text_height
-        
-        # Create new image with white background
-        final_img = Image.new('RGB', (barcode_width, new_height), 'white')
-        final_img.paste(barcode_img, (0, 0))
-        
-        # Draw text on the image
+        barcode_img = barcode_img.resize((400, 120))
+
+        width, barcode_height = barcode_img.size
+        total_height = 260
+
+        final_img = Image.new('RGB', (width, total_height), 'white')
         draw = ImageDraw.Draw(final_img)
-        
-        # Try to load a font, fallback to default
+
+        # Fonts
         try:
-            # For Windows
-            font_title = ImageFont.truetype("arial.ttf", 20)
-            font_normal = ImageFont.truetype("arial.ttf", 16)
+            font_shop = ImageFont.truetype("arial.ttf", 26)
+            font_product = ImageFont.truetype("arial.ttf", 24)
         except:
-            try:
-                # For Linux/Mac
-                font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
-                font_normal = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 16)
-            except:
-                # Default font
-                font_title = ImageFont.load_default()
-                font_normal = ImageFont.load_default()
-        
-        # Add product details
-        y_position = barcode_height + 10
-        
-        # Product Code (highlighted)
-        draw.text((10, y_position), f"Product Code: {code}", fill='black', font=font_title)
-        y_position += 25
-        
-        # Product Name
-        draw.text((10, y_position), f"Name: {name}", fill='black', font=font_normal)
-        y_position += 22
-        
-        # Price/Amount
-        draw.text((10, y_position), f"Price: ₹{price:.2f}", fill='black', font=font_normal)
-        
-        # Save the final image
-        final_path = f"{BARCODE_FOLDER}/{code}_full.png"
+            font_shop = ImageFont.load_default()
+            font_product = ImageFont.load_default()
+
+        def center_text(text, y, font):
+            text_width = draw.textlength(text, font=font)
+            x = (width - text_width) // 2
+            draw.text((x, y), text, fill='black', font=font)
+
+        # Content
+        center_text(shop_name, 10, font_shop)
+        draw.line((20, 45, width-20, 45), fill="black", width=1)
+        center_text(f"{name} | PRICE: ₹{price}", 55, font_product)
+
+        final_img.paste(barcode_img, (0, 100))
+
+        final_path = f"{BARCODE_FOLDER}/{code}_final.png"
         final_img.save(final_path)
-        
-        # Clean up temporary barcode file
+
         if os.path.exists(barcode_filename):
             os.remove(barcode_filename)
-        
+
         return f"/{final_path}"
-        
+
     except Exception as e:
-        print(f"Error generating barcode with details: {e}")
-        # Fallback to simple barcode
-        barcode_class = barcode.get_barcode_class('code128')
-        file_path = f"{BARCODE_FOLDER}/{code}"
-        my_barcode = barcode_class(code, writer=ImageWriter())
-        filename = my_barcode.save(file_path)
-        return f"/{filename}"
+        print("Error:", e)
+        return ""
 
 # ---------- Routes ----------
 
