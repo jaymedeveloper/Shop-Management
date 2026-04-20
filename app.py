@@ -113,8 +113,10 @@ def generate_barcode_with_details(code, name, price):
 
         # Fonts
         try:
-            font_shop = ImageFont.truetype("arial.ttf", 26)
-            font_product = ImageFont.truetype("arial.ttf", 24)
+            font_path = "static/fonts/Roboto-Italic-VariableFont_wdth,wght.ttf"
+
+            font_shop = ImageFont.truetype(font_path, 26)
+            font_product = ImageFont.truetype(font_path, 24)
         except:
             font_shop = ImageFont.load_default()
             font_product = ImageFont.load_default()
