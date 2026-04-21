@@ -133,12 +133,12 @@
         let productMap = {};
 
         PRODUCTS.forEach(p => {
-            productMap[p.code] = {
-                name: p.name,
-                price: p.price,
-                stock: p.stock
-            };
-        });
+    productMap[p[0]] = {
+        name: p[1],
+        price: p[2],
+        stock: p[3]
+    };
+});
 
         console.log(PRODUCTS);
 
