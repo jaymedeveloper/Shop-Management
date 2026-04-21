@@ -16,6 +16,24 @@ BARCODE_FOLDER = 'static/barcodes'
 os.makedirs(BARCODE_FOLDER, exist_ok=True)
 
 # ---------- Helper Functions ---------
+def add_is_active_column():
+    try:
+        conn = db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            ALTER TABLE products 
+            ADD COLUMN is_active BOOLEAN DEFAULT TRUE
+        """)
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Column added ✅")
+
+    except Exception as e:
+        print("Column शायद already exist:", e)
+
 
 def get_products_from_sheet(Uid):
     try:
@@ -250,10 +268,27 @@ def profile():
 
 
 @app.route('/order')
+@app.route('/order')
 def order():
     Uid=session.get('Uid')
-    product=get_products_from_sheet(Uid)
-    return render_template("order_page.html", products=product)
+
+    conn=db()
+    cur=conn.cursor()
+
+    cur.execute("""
+    SELECT code,name,price,stock 
+    FROM products 
+    WHERE user_id=%s AND is_active = TRUE
+    """,(Uid,))
+
+    data=cur.fetchall()
+
+    print("ORDER PAGE DATA:", data)   # 👈 ADD THIS
+
+    cur.close()
+    conn.close()
+
+    return render_template("order_page.html", products=data)
 
 @app.route('/refresh-products')
 def refresh_products():
@@ -328,11 +363,49 @@ def products():
     Uid=session.get('Uid')
     conn=db()
     cur=conn.cursor()
-    cur.execute("SELECT code, name, price, stock FROM products WHERE user_id=%s ORDER BY code ASC",(Uid,))
+
+    cur.execute("""
+    SELECT code, name, price, stock, is_active 
+    FROM products 
+    WHERE user_id=%s 
+    ORDER BY code ASC
+    """,(Uid,))
+
     data=cur.fetchall()
+
     cur.close()
     conn.close()
+
     return render_template("products.html", products=data)
+
+
+@app.route("/api/toggle-product", methods=["POST"])
+def toggle_product():
+    try:
+        Uid = session.get('Uid')
+        data = request.get_json()
+
+        code = data["code"]
+        status = True if data["status"] == 1 else False   
+
+        conn = db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE products 
+            SET is_active=%s 
+            WHERE user_id=%s AND code=%s
+        """, (status, Uid, code))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        print(e)
+        return jsonify({"status": "error"})
 
 
 @app.route("/api/add-product", methods=["POST"])
@@ -465,5 +538,6 @@ def download_barcode(code):
 
 
 if __name__ == "__main__":
+    add_is_active_column()   # 👈 YE LINE ADD KARO
     port = int(os.environ.get("PORT",8080))
     app.run(host="0.0.0.0", port=port, debug=True)
