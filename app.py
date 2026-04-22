@@ -441,6 +441,35 @@ def api_add_product():
         print(e)
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route("/api/update-product", methods=["POST"])
+def update_product():
+    try:
+        Uid = session.get('Uid')
+        data = request.get_json()
+
+        code = data["code"]
+        name = data["name"]
+        price = float(data["price"])
+        stock = int(data["stock"])
+
+        conn = db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE products
+            SET name=%s, price=%s, stock=%s
+            WHERE user_id=%s AND code=%s
+        """, (name, price, stock, Uid, code))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        print(e)
+        return jsonify({"status": "error"})
 
 @app.route("/bills")
 def bills():
