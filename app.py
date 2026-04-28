@@ -566,6 +566,98 @@ def download_barcode(code):
         return "Error"
 
 
+@app.route('/api/get-product-name')
+def get_product_name():
+    try:
+        Uid = session.get('Uid')
+        code = request.args.get('code')
+        
+        conn = db()
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM products WHERE user_id=%s AND code=%s AND is_active = TRUE", (Uid, code))
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if result:
+            return jsonify({"name": result[0]})
+        return jsonify({"name": None})
+    except:
+        return jsonify({"name": None})
+
+@app.route('/api/batch-stock-increment', methods=["POST"])
+def batch_stock_increment():
+    try:
+        Uid = session.get('Uid')
+        if not Uid:
+            return jsonify({"status": "error", "message": "Login required"}), 401
+        
+        data = request.get_json()
+        products = data.get("products", [])
+        
+        if not products:
+            return jsonify({"status": "error", "message": "No products"}), 400
+        
+        conn = db()
+        cur = conn.cursor()
+        
+        updated_count = 0
+        
+        for p in products:
+            code = p["code"]
+            quantity = p.get("quantity", 1)  # ✅ quantity = jitni baar scan hua
+            
+            # Update stock by quantity
+            cur.execute("""
+                UPDATE products 
+                SET stock = stock + %s 
+                WHERE user_id=%s AND code=%s AND is_active = TRUE
+            """, (quantity, Uid, code))
+            
+            if cur.rowcount > 0:
+                updated_count += 1
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "updated": updated_count,
+            "total": len(products)
+        })
+        
+    except Exception as e:
+        print("Batch Error:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/get-all-products')
+def get_all_products():
+    try:
+        Uid = session.get('Uid')
+        if not Uid:
+            return jsonify({"status": "error", "message": "Login required"}), 401
+        
+        conn = db()
+        cur = conn.cursor()
+        cur.execute("SELECT code, name FROM products WHERE user_id=%s AND is_active = TRUE ORDER BY code", (Uid,))
+        products = [{"code": row[0], "name": row[1]} for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        
+        return jsonify({"status": "success", "products": products})
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/scan-stock')
+def scan_stock():
+    if not session.get('Uid'):
+        return redirect('/login')
+    return render_template('batch_scan.html')
+
 if __name__ == "__main__":
     add_is_active_column()   # 👈 YE LINE ADD KARO
     port = int(os.environ.get("PORT",8080))
