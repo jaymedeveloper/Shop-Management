@@ -15,7 +15,7 @@ app.permanent_session_lifetime = timedelta(days=365)
 BARCODE_FOLDER = 'static/barcodes'
 os.makedirs(BARCODE_FOLDER, exist_ok=True)
 
-paymant = True
+paymant = False
 @app.before_request
 def force_custom_domain():
     if paymant != True:
